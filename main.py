@@ -64,8 +64,62 @@ def parse_recipe(html):
 
 
 # Conversational Interface
+def handle_user_input(user_input):
+    global current_step
+    user_input = user_input.lower().strip()
+    
+    if user_input == "1" or "ingredients" in user_input:
+        return "Here are the ingredients:\n" + "\n".join(recipe["ingredients"])
+        
+    elif user_input == "2" or "steps" in user_input:
+        current_step = 0
+        return f"Step 1: {recipe['steps'][0]}"
+        
+    elif "next" in user_input or "continue" in user_input:
+        if current_step < len(recipe["steps"]) - 1:
+            current_step += 1
+            return f"Step {current_step + 1}: {recipe['steps'][current_step]}"
+        return "That was the last step!"
+        
+    elif "previous" in user_input or "back" in user_input:
+        if current_step > 0:
+            current_step -= 1
+            return f"Step {current_step + 1}: {recipe['steps'][current_step]}"
+        return "You're already at the first step!"
+        
+    elif "how do i" in user_input:
+        search_term = user_input.replace("how do i", "").strip()
+        return f"Here's a video that might help: https://www.youtube.com/results?search_query=how+to+{search_term.replace(' ', '+')}"
+        
+    elif "what is" in user_input:
+        search_term = user_input.replace("what is", "").strip()
+        return f"Here's some information: https://www.google.com/search?q={search_term.replace(' ', '+')}"
+        
+    return "I don't understand. You can:\n1. View ingredients\n2. Go through steps\n- Say 'next' or 'previous' to navigate steps\n- Ask 'how do I...' or 'what is...'"
 
-# Main Flow
-url = "https://www.allrecipes.com/recipe/218091/classic-and-simple-meat-lasagna/"
-html = fetch_url(url)
-parse_recipe(html)
+def conversational_interface():
+    print("Welcome to Recipe Helper!")
+    url = input("Please enter an AllRecipes URL (or press Enter for default recipe): ")
+    
+    if not url:
+        url = "https://www.allrecipes.com/recipe/218091/classic-and-simple-meat-lasagna/"
+    
+    html = fetch_url(url)
+    parse_recipe(html)
+    
+    print(f"\nLoaded recipe: {recipe['title']}")
+    print("\nWhat would you like to do?")
+    print("[1] See ingredients list")
+    print("[2] Start cooking (go through steps)")
+    
+    while True:
+        user_input = input("\nYou: ")
+        if user_input.lower() == "exit":
+            print("Goodbye!")
+            break
+            
+        response = handle_user_input(user_input)
+        print("\nBot:", response)
+
+if __name__ == "__main__":
+    conversational_interface()
