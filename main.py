@@ -69,7 +69,8 @@ def handle_user_input(user_input):
     user_input = user_input.lower().strip()
     
     if user_input == "1" or "ingredients" in user_input:
-        return "Here are the ingredients:\n" + "\n".join(recipe["ingredients"])
+        # come up with a bunch of different ways they could ask for ingredients...
+        return "Here are the ingredients for \"" + recipe["title"] + "\":\n" + "\n".join(recipe["ingredients"])
         
     elif user_input == "2" or "steps" in user_input:
         current_step = 0
@@ -86,9 +87,21 @@ def handle_user_input(user_input):
             current_step -= 1
             return f"Step {current_step + 1}: {recipe['steps'][current_step]}"
         return "You're already at the first step!"
-        
-    elif "how do i" in user_input:
-        search_term = user_input.replace("how do i", "").strip()
+
+    # take me to the nth step:
+    elif "step" in user_input:
+        step_number = re.search(r"\d+", user_input)
+        if step_number:
+            step_number = int(step_number.group())
+            if 1 <= step_number <= len(recipe["steps"]):
+                current_step = step_number - 1  # Adjust to 0-based index (internally)
+                return f"Step {step_number}: {recipe['steps'][current_step]}"  # Display the step number from user input
+            return f"Step {step_number} is out of range. There are only {len(recipe['steps'])} steps."
+        return "I didn't understand the step number."
+    
+    # needs to have the part about "how do i do that" instead of just how do i ___. will need multiple phrasings for "that" and reference the step before
+    elif "how do i" in user_input or "how to" in user_input:
+        search_term = user_input.replace("how do i", "").replace("how to", "").strip()
         return f"Here's a video that might help: https://www.youtube.com/results?search_query=how+to+{search_term.replace(' ', '+')}"
         
     elif "what is" in user_input:
