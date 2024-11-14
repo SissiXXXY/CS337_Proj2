@@ -98,6 +98,10 @@ def handle_user_input(user_input):
                 return f"Step {step_number}: {recipe['steps'][current_step]}"  # Display the step number from user input
             return f"Step {step_number} is out of range. There are only {len(recipe['steps'])} steps."
         return "I didn't understand the step number."
+
+    # if repeat in there just repeat the current step
+    elif "repeat" in user_input:
+        return f"Step {current_step + 1}: {recipe['steps'][current_step]}"
     
     # needs to have the part about "how do i do that" instead of just how do i ___. will need multiple phrasings for "that" and reference the step before
     elif "how do i" in user_input or "how to" in user_input:
