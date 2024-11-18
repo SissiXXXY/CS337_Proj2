@@ -15,6 +15,12 @@ recipe = {
     "steps": [],
 }
 
+COMMON_TOOLS = [
+    "pan", "skillet", "grater", "whisk", "knife", "spatula", "bowl",
+    "oven", "mixer", "peeler", "measuring cup", "blender", "microwave",
+    "cutting board", "tongs", "pressure cooker", "baking sheet"
+]
+
 current_step = 0  # Track the current step in the conversation
 
 # URL Fetching
@@ -58,6 +64,14 @@ def parse_recipe(html):
     recipe["description"] = des.group(1) if des else "No description available"
     recipe["ingredients"] = jsondata.get("recipeIngredient", [])
     recipe["steps"] = [step["text"] for step in jsondata.get("recipeInstructions", [])]
+
+
+    tools_found = set()
+    for step in recipe["steps"]:
+        for tool in COMMON_TOOLS:
+            if re.search(rf"\b{tool}\b", step, re.IGNORECASE):
+                tools_found.add(tool)
+    recipe["tools"] = list(tools_found) 
     return True
 
 def handle_user_input(user_input):
@@ -83,6 +97,22 @@ def handle_user_input(user_input):
             return f"Step {current_step + 1}: {recipe['steps'][current_step]}"
         return "You're already at the first step!"
 
+    
+
+    elif "repeat" in user_input:
+        if "step" not in user_input:
+            if recipe["steps"]:
+                return f"Step {current_step + 1}: {recipe['steps'][current_step]}"
+            return "No recipe loaded yet."
+
+        step_number = re.search(r"\d+", user_input)
+        if step_number:
+            step_number = int(step_number.group())
+            if 1 <= step_number <= len(recipe["steps"]):
+                return f"Step {step_number}: {recipe['steps'][step_number - 1]}"
+            return f"Step {step_number} is out of range. There are only {len(recipe['steps'])} steps."
+        
+        return "I didn't understand the step number."
     elif "step" in user_input:
         step_number = re.search(r"\d+", user_input)
         if step_number:
@@ -92,11 +122,6 @@ def handle_user_input(user_input):
                 return f"Step {step_number}: {recipe['steps'][current_step]}"
             return f"Step {step_number} is out of range. There are only {len(recipe['steps'])} steps."
         return "I didn't understand the step number."
-
-    elif "repeat" in user_input:
-        if recipe["steps"]:
-            return f"Step {current_step + 1}: {recipe['steps'][current_step]}"
-        return "No recipe loaded yet."
 
     elif "how do i" in user_input or "how to" in user_input:
         search_term = user_input.replace("how do i", "").replace("how to", "").strip()
@@ -122,7 +147,6 @@ def handle_user_input(user_input):
     elif "what can i use instead of" in user_input:
         ingredient = user_input.replace("what can i use instead of", "").strip()
         # print(ingredient)
-        
         if ingredient:
             search_url = f"https://www.google.com/search?q=alternatives+to+{ingredient.replace(' ', '+')}"
             return f"Here's suggestions for alternatives to {ingredient}: {search_url}"
@@ -138,7 +162,7 @@ def handle_user_input(user_input):
         
         if match:
             temperature_info = match.group(0)
-            return f"The temperature is: {temperature_info}"
+            return f"The temperature is {temperature_info}"
         else:
             for index, step in enumerate(recipe["steps"]):
                 match = re.search(r"(\d{2,})\s?degrees", step, re.IGNORECASE)
@@ -148,21 +172,64 @@ def handle_user_input(user_input):
                     return (f"No temperature is mentioned in this step, "
                         f"but Step {index + 1} says: {temperature_info} ")
             return "No temperature is mentioned in this recipe."
+    elif "tools" in user_input:
+        if recipe.get("tools"):
+            return f"The tools needed for this recipe are:\n" + ", ".join(recipe["tools"])
+        return "No specific tools are mentioned in this recipe."
+
     elif "when is it done" in user_input:
         curr_step = recipe["steps"][current_step]
-        print(f"Debug: Current step text: {curr_step}")
+        # print(curr_step)
         
-        completion_match = re.search(r"(until\s.*?(done|brown|tender|cooked|ready|through))", curr_step, re.IGNORECASE)
-        if completion_match:
-            completion_info = completion_match.group(1).strip()
-            print(f"Debug: Completion information extracted: {completion_info}")
-            
-            completion_info = completion_info.replace("until", "").strip()
-            completion_info = completion_info[0]. + completion_info[1:]
-            
-            return f"This step is done when {completion_info}."
-   
+        sentences = re.split(r'\.|\?|\!', curr_step)
+        last_sentence = sentences[-2].strip() if len(sentences) > 1 else curr_step.strip()
+
+        trigger_keywords = [r"until\s.*$", r"when\s.*$", r"after\s.*$", r"then\s.*$"]
+        completion_keywords = r"(done|brown|tender|cooked|ready|through|combined|crumbly)"
+        
+        for trigger in trigger_keywords:
+            trigger_match = re.search(trigger, last_sentence, re.IGNORECASE)
+            if trigger_match:
+                condition = trigger_match.group().strip() 
+                condition = re.sub(r'^(until|when|after|then)\s+', '', condition, flags=re.IGNORECASE)
+
+                for separator in [',', ';', '-']:
+                    if separator in condition:
+                        parts = condition.split(separator)
+                        for part in parts[1:]:
+                            if re.search(completion_keywords, part, re.IGNORECASE):
+                                break
+                        else:
+                            condition = parts[0].strip()
+
+                return f"This step is done when {condition}."
+        state_match = re.search(completion_keywords, last_sentence, re.IGNORECASE)
+        if state_match:
+            state = state_match.group().strip()
+
+            for separator in [',', ';', '-']:
+                if separator in last_sentence:
+                    parts = last_sentence.split(separator)
+                    for part in parts[1:]:
+                        if re.search(completion_keywords, part, re.IGNORECASE):
+                            break
+                    else:
+                        last_sentence = parts[0].strip()
+
+            return f"This step is done when {state}."
+
         return "I couldn't find any indicators for when it's done at this step. Refer to other steps."
+            
+    #     # completion_match = re.search(r"(until\s.*?(done|brown|tender|cooked|ready|through))", curr_step, re.IGNORECASE)
+    #     # if completion_match:
+    #     #     completion_info = completion_match.group(1).strip()
+            
+    #     #     completion_info = completion_info.replace("until", "").strip()
+    #     #     completion_info = completion_info[0] + completion_info[1:]
+            
+    #     # return f"This step is done when {completion_info}."
+
+    #     return "I couldn't find any indicators for when it's done at this step. Refer to other steps."
 
 
 
