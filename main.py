@@ -106,6 +106,66 @@ def handle_user_input(user_input):
         search_term = user_input.replace("what is", "").strip()
         return f"Here's some information: https://www.google.com/search?q={search_term.replace(' ', '+')}"
 
+    elif "how long" in user_input or "time" in user_input:
+        curr_step = recipe["steps"][current_step]
+        # print(curr_step)
+    
+        match = re.search(r"(\d+)\s?(minutes?|seconds?)", curr_step, re.IGNORECASE)
+        
+        if match:
+            time_info = match.group(0)
+            # print(time_info)
+            return f"The time is: {time_info}"
+        else:
+            return "No time is mentioned in this step."
+
+    elif "what can i use instead of" in user_input:
+        ingredient = user_input.replace("what can i use instead of", "").strip()
+        # print(ingredient)
+        
+        if ingredient:
+            search_url = f"https://www.google.com/search?q=alternatives+to+{ingredient.replace(' ', '+')}"
+            return f"Here's suggestions for alternatives to {ingredient}: {search_url}"
+        else:
+            return "Please specify an ingredient you'd like to substitute."
+
+
+    elif "what temperature" in user_input or "temperature" in user_input:
+        cur_step = recipe["steps"][current_step]
+        # print(cur_step)
+        
+        match = re.search(r"(\d{2,})\s?degrees", cur_step, re.IGNORECASE)
+        
+        if match:
+            temperature_info = match.group(0)
+            return f"The temperature is: {temperature_info}"
+        else:
+            for index, step in enumerate(recipe["steps"]):
+                match = re.search(r"(\d{2,})\s?degrees", step, re.IGNORECASE)
+                if match:
+                    temperature_info = match.group(0)
+                    # step_context = step.strip()
+                    return (f"No temperature is mentioned in this step, "
+                        f"but Step {index + 1} says: {temperature_info} ")
+            return "No temperature is mentioned in this recipe."
+    elif "when is it done" in user_input:
+        curr_step = recipe["steps"][current_step]
+        print(f"Debug: Current step text: {curr_step}")
+        
+        completion_match = re.search(r"(until\s.*?(done|brown|tender|cooked|ready|through))", curr_step, re.IGNORECASE)
+        if completion_match:
+            completion_info = completion_match.group(1).strip()
+            print(f"Debug: Completion information extracted: {completion_info}")
+            
+            completion_info = completion_info.replace("until", "").strip()
+            completion_info = completion_info[0]. + completion_info[1:]
+            
+            return f"This step is done when {completion_info}."
+   
+        return "I couldn't find any indicators for when it's done at this step. Refer to other steps."
+
+
+
     return "I don't understand. You can:\n1. View ingredients\n2. Go through steps\n- Say 'next' or 'previous' to navigate steps\n- Ask 'how do I...' or 'what is...'"
 
 def process_url(url, say):
