@@ -3,6 +3,7 @@ import re
 import json
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
+import spacey
 
 # Initialize Slack Bolt app
 app = App(token="xoxb-8035210513302-8041742658787-Srg5e71VY5EuipjrYpX8saZi")
@@ -13,23 +14,41 @@ recipe = {
     "description": "",
     "ingredients": [],
     "steps": [],
+    "methods": [],
 }
 
 COMMON_TOOLS = [
-    "pan", "skillet", "grater", "whisk", "knife", "spatula", "bowl",
-    "oven", "mixer", "peeler", "measuring cup", "blender", "microwave",
-    "cutting board", "tongs", "pressure cooker", "baking sheet"
+    "pan",
+    "skillet",
+    "grater",
+    "whisk",
+    "knife",
+    "spatula",
+    "bowl",
+    "oven",
+    "mixer",
+    "peeler",
+    "measuring cup",
+    "blender",
+    "microwave",
+    "cutting board",
+    "tongs",
+    "pressure cooker",
+    "baking sheet",
 ]
 
 current_step = 0  # Track the current step in the conversation
+
+nlp = spacey.load("en_core_web_sm")
+
 
 # URL Fetching
 def fetch_url(url):
     try:
         print(f"Fetching URL: {url}")
         # remove any trailing characters after the URL - from slack
-        print(url.strip('>'))
-        url = url.strip('>')
+        print(url.strip(">"))
+        url = url.strip(">")
         # now good to fetch the URL
         print(f"Fetching URL: {url}")
         response = urllib.request.urlopen(url)
@@ -39,6 +58,7 @@ def fetch_url(url):
         print(f"Error fetching URL: {e}")
         return ""
     return html
+
 
 def parse_recipe(html):
     title = re.search(r"<title>(.*?)</title>", html)
@@ -64,22 +84,57 @@ def parse_recipe(html):
     recipe["description"] = des.group(1) if des else "No description available"
     recipe["ingredients"] = jsondata.get("recipeIngredient", [])
     recipe["steps"] = [step["text"] for step in jsondata.get("recipeInstructions", [])]
-
+    recipe["methods"] = cooking_methods(recipe["steps"])
+    # recipe["step_details"] = step_details(recipe["steps"])
 
     tools_found = set()
     for step in recipe["steps"]:
         for tool in COMMON_TOOLS:
             if re.search(rf"\b{tool}\b", step, re.IGNORECASE):
                 tools_found.add(tool)
-    recipe["tools"] = list(tools_found) 
+    recipe["tools"] = list(tools_found)
     return True
+
+
+# def step_details(steps):
+#     step_details = []
+#     for index, step_text in enumerate(steps):
+#         step_doc = nlp(step_text)
+#         ingredients = [
+#             chunk.text
+#             for chunk in step_doc.noun_chunks
+#             if "ingredient" in chunk.root.head.text.lower()
+#         ]
+#         tools = [tool for tool in COMMON_TOOLS if tool in step_text.lower()]
+#         methods = [method for method in cooking_methods if method in step_text.lower()]
+#         times = re.findall(r"(\d+ (minutes|seconds))", step_text)
+#         temperatures = re.findall(r"(\d+ degrees)", step_text)
+
+#         step_details.append(
+#             {
+#                 "step": index + 1,  # Store step number for easy reference
+#                 "text": step_text,
+#                 "ingredients": ingredients,
+#                 "tools": tools,
+#                 "methods": methods,
+#                 "times": [t[0] for t in times],
+#                 "temperatures": [temp[0] for temp in temperatures],
+#             }
+#         )
+#     return step_details
+
 
 def handle_user_input(user_input):
     global current_step
     user_input = user_input.lower().strip()
 
     if user_input == "1" or "ingredients" in user_input:
-        return "Here are the ingredients for \"" + recipe["title"] + "\":\n" + "\n".join(recipe["ingredients"])
+        return (
+            'Here are the ingredients for "'
+            + recipe["title"]
+            + '":\n'
+            + "\n".join(recipe["ingredients"])
+        )
 
     elif user_input == "2" or "steps" in user_input:
         current_step = 0
@@ -97,8 +152,6 @@ def handle_user_input(user_input):
             return f"Step {current_step + 1}: {recipe['steps'][current_step]}"
         return "You're already at the first step!"
 
-    
-
     elif "repeat" in user_input:
         if "step" not in user_input:
             if recipe["steps"]:
@@ -111,7 +164,7 @@ def handle_user_input(user_input):
             if 1 <= step_number <= len(recipe["steps"]):
                 return f"Step {step_number}: {recipe['steps'][step_number - 1]}"
             return f"Step {step_number} is out of range. There are only {len(recipe['steps'])} steps."
-        
+
         return "I didn't understand the step number."
     elif "step" in user_input:
         step_number = re.search(r"\d+", user_input)
@@ -122,6 +175,9 @@ def handle_user_input(user_input):
                 return f"Step {step_number}: {recipe['steps'][current_step]}"
             return f"Step {step_number} is out of range. There are only {len(recipe['steps'])} steps."
         return "I didn't understand the step number."
+
+    elif "methods" in user_input:
+        return f"Here are the cooking methods used in the recipe: {', '.join(recipe['methods'])}"
 
     elif "how do i" in user_input or "how to" in user_input:
         search_term = user_input.replace("how do i", "").replace("how to", "").strip()
@@ -134,9 +190,9 @@ def handle_user_input(user_input):
     elif "how long" in user_input or "time" in user_input:
         curr_step = recipe["steps"][current_step]
         # print(curr_step)
-    
+
         match = re.search(r"(\d+)\s?(minutes?|seconds?)", curr_step, re.IGNORECASE)
-        
+
         if match:
             time_info = match.group(0)
             # print(time_info)
@@ -153,13 +209,12 @@ def handle_user_input(user_input):
         else:
             return "Please specify an ingredient you'd like to substitute."
 
-
     elif "what temperature" in user_input or "temperature" in user_input:
         cur_step = recipe["steps"][current_step]
         # print(cur_step)
-        
+
         match = re.search(r"(\d{2,})\s?degrees", cur_step, re.IGNORECASE)
-        
+
         if match:
             temperature_info = match.group(0)
             return f"The temperature is {temperature_info}"
@@ -169,31 +224,41 @@ def handle_user_input(user_input):
                 if match:
                     temperature_info = match.group(0)
                     # step_context = step.strip()
-                    return (f"No temperature is mentioned in this step, "
-                        f"but Step {index + 1} says: {temperature_info} ")
+                    return (
+                        f"No temperature is mentioned in this step, "
+                        f"but Step {index + 1} says: {temperature_info} "
+                    )
             return "No temperature is mentioned in this recipe."
     elif "tools" in user_input:
         if recipe.get("tools"):
-            return f"The tools needed for this recipe are:\n" + ", ".join(recipe["tools"])
+            return f"The tools needed for this recipe are:\n" + ", ".join(
+                recipe["tools"]
+            )
         return "No specific tools are mentioned in this recipe."
 
     elif "when is it done" in user_input:
         curr_step = recipe["steps"][current_step]
         # print(curr_step)
-        
-        sentences = re.split(r'\.|\?|\!', curr_step)
-        last_sentence = sentences[-2].strip() if len(sentences) > 1 else curr_step.strip()
+
+        sentences = re.split(r"\.|\?|\!", curr_step)
+        last_sentence = (
+            sentences[-2].strip() if len(sentences) > 1 else curr_step.strip()
+        )
 
         trigger_keywords = [r"until\s.*$", r"when\s.*$", r"after\s.*$", r"then\s.*$"]
-        completion_keywords = r"(done|brown|tender|cooked|ready|through|combined|crumbly)"
-        
+        completion_keywords = (
+            r"(done|brown|tender|cooked|ready|through|combined|crumbly)"
+        )
+
         for trigger in trigger_keywords:
             trigger_match = re.search(trigger, last_sentence, re.IGNORECASE)
             if trigger_match:
-                condition = trigger_match.group().strip() 
-                condition = re.sub(r'^(until|when|after|then)\s+', '', condition, flags=re.IGNORECASE)
+                condition = trigger_match.group().strip()
+                condition = re.sub(
+                    r"^(until|when|after|then)\s+", "", condition, flags=re.IGNORECASE
+                )
 
-                for separator in [',', ';', '-']:
+                for separator in [",", ";", "-"]:
                     if separator in condition:
                         parts = condition.split(separator)
                         for part in parts[1:]:
@@ -207,7 +272,7 @@ def handle_user_input(user_input):
         if state_match:
             state = state_match.group().strip()
 
-            for separator in [',', ';', '-']:
+            for separator in [",", ";", "-"]:
                 if separator in last_sentence:
                     parts = last_sentence.split(separator)
                     for part in parts[1:]:
@@ -219,21 +284,20 @@ def handle_user_input(user_input):
             return f"This step is done when {state}."
 
         return "I couldn't find any indicators for when it's done at this step. Refer to other steps."
-            
+
     #     # completion_match = re.search(r"(until\s.*?(done|brown|tender|cooked|ready|through))", curr_step, re.IGNORECASE)
     #     # if completion_match:
     #     #     completion_info = completion_match.group(1).strip()
-            
+
     #     #     completion_info = completion_info.replace("until", "").strip()
     #     #     completion_info = completion_info[0] + completion_info[1:]
-            
+
     #     # return f"This step is done when {completion_info}."
 
     #     return "I couldn't find any indicators for when it's done at this step. Refer to other steps."
 
-
-
     return "I don't understand. You can:\n1. View ingredients\n2. Go through steps\n- Say 'next' or 'previous' to navigate steps\n- Ask 'how do I...' or 'what is...'"
+
 
 def process_url(url, say):
     """Helper function to process URLs and return appropriate messages"""
@@ -251,20 +315,22 @@ def process_url(url, say):
         say("Sorry, I couldn't parse that recipe. Make sure it's from AllRecipes.com")
         return False
 
+
 # Dictionary to track if welcome message has been sent to a channel
 channel_welcomed = {}
+
 
 @app.event("app_mention")
 def mention_handler(event, say):
     channel_id = event["channel"]
     text = event["text"].lower()
-    
+
     # Send welcome message if this is the first interaction in the channel
     if channel_id not in channel_welcomed:
         welcome_message = "Welcome to Recipe Helper!\nTo get started, share an AllRecipes URL or say 'fetch' followed by the URL."
         say(welcome_message)
         channel_welcomed[channel_id] = True
-        
+
         # Check if URL is already included in the first message
         url_match = re.search(r"https?://[^\s]+", text)
         if url_match:
@@ -283,6 +349,7 @@ def mention_handler(event, say):
         response = handle_user_input(text)
         say(response)
 
+
 def conversational_interface():
     print("Welcome to Recipe Helper!")
     print("You can:")
@@ -292,24 +359,26 @@ def conversational_interface():
 
     if choice == "1":
         # Command line interface
-        url = input("Please enter an AllRecipes URL (or press Enter for default recipe): ")
-        
+        url = input(
+            "Please enter an AllRecipes URL (or press Enter for default recipe): "
+        )
+
         if not url:
             url = "https://www.allrecipes.com/recipe/218091/classic-and-simple-meat-lasagna/"
-        
+
         html = fetch_url(url)
         if html and parse_recipe(html):
             print(f"\nLoaded recipe: {recipe['title']}")
             print("\nWhat would you like to do?")
             print("[1] See ingredients list")
             print("[2] Start cooking (go through steps)")
-            
+
             while True:
                 user_input = input("\nYou: ")
                 if user_input.lower() == "exit":
                     print("Goodbye!")
                     break
-                    
+
                 response = handle_user_input(user_input)
                 print("\nBot:", response)
         else:
@@ -318,10 +387,25 @@ def conversational_interface():
     elif choice == "2":
         # Start Slack bot
         print("Starting Slack bot...")
-        handler = SocketModeHandler(app, "xapp-1-A080T8KTBEK-8044350362004-85927f8b944de02ed402c8241e77c111fe2cd96da586e229f9bb67f5da770933")
+        handler = SocketModeHandler(
+            app,
+            "xapp-1-A080T8KTBEK-8044350362004-85927f8b944de02ed402c8241e77c111fe2cd96da586e229f9bb67f5da770933",
+        )
         handler.start()
     else:
         print("Invalid choice. Please try again.")
+
+
+def cooking_methods(steps):
+    cooking_methods = {}
+    for step in steps:
+        doc = nlp(step)
+        verbs = [token.lemma_ for token in doc if token.pos_ == "VERB"]
+        found_methods = [method for method in cooking_methods if method in verbs]
+        if found_methods:
+            cooking_methods[step] = found_methods
+    return cooking_methods
+
 
 if __name__ == "__main__":
     conversational_interface()
