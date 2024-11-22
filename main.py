@@ -5,10 +5,9 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 import spacy
 
-# Initialize Slack Bolt app
+# initialize slack integration
 app = App(token="xoxb-8035210513302-8041742658787-Srg5e71VY5EuipjrYpX8saZi")
 
-# Recipe Structure
 recipe = {
     "title": "",
     "description": "",
@@ -353,6 +352,10 @@ def mention_handler(event, say):
         process_url(url, say)
     else:
         # Only handle other commands if no URL is present
+        if "exit" in text.lower():
+            say("Goodbye!")
+            say("If you need help with a new recipe, just paste the URL with me mentioned!")
+            return
         response = handle_user_input(text)
         say(response)
 
