@@ -3,7 +3,7 @@ import re
 import json
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
-import spacey
+import spacy
 
 # Initialize Slack Bolt app
 app = App(token="xoxb-8035210513302-8041742658787-Srg5e71VY5EuipjrYpX8saZi")
@@ -39,7 +39,7 @@ COMMON_TOOLS = [
 
 current_step = 0  # Track the current step in the conversation
 
-nlp = spacey.load("en_core_web_sm")
+nlp = spacy.load("en_core_web_sm")
 
 
 # URL Fetching
@@ -123,6 +123,10 @@ def parse_recipe(html):
 #         )
 #     return step_details
 
+def clean_search_term_slack(search_term):
+    cleaned_text = re.sub(r'\s*@\S+', '', search_term)
+    return cleaned_text.strip()
+
 
 def handle_user_input(user_input):
     global current_step
@@ -181,10 +185,12 @@ def handle_user_input(user_input):
 
     elif "how do i" in user_input or "how to" in user_input:
         search_term = user_input.replace("how do i", "").replace("how to", "").strip()
+        search_term = clean_search_term_slack(search_term)
         return f"Here's a video that might help: https://www.youtube.com/results?search_query=how+to+{search_term.replace(' ', '+')}"
 
     elif "what is" in user_input:
         search_term = user_input.replace("what is", "").strip()
+        search_term = clean_search_term_slack(search_term)
         return f"Here's some information: https://www.google.com/search?q={search_term.replace(' ', '+')}"
 
     elif "how long" in user_input or "time" in user_input:
@@ -204,6 +210,7 @@ def handle_user_input(user_input):
         ingredient = user_input.replace("what can i use instead of", "").strip()
         # print(ingredient)
         if ingredient:
+            ingredient = clean_search_term_slack(ingredient)
             search_url = f"https://www.google.com/search?q=alternatives+to+{ingredient.replace(' ', '+')}"
             return f"Here's suggestions for alternatives to {ingredient}: {search_url}"
         else:
