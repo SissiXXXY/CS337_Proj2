@@ -36,7 +36,7 @@ COMMON_TOOLS = [
     "baking sheet",
 ]
 
-current_step = 0  # Track the current step in the conversation
+current_step = 0 
 
 nlp = spacy.load("en_core_web_sm")
 
@@ -305,8 +305,8 @@ def handle_user_input(user_input):
     return "I don't understand. You can:\n1. View ingredients\n2. Go through steps\n- Say 'next' or 'previous' to navigate steps\n- Ask 'how do I...' or 'what is...'"
 
 
+# processing urls and returning appropriate messages
 def process_url(url, say):
-    """Helper function to process URLs and return appropriate messages"""
     html = fetch_url(url)
     if html and parse_recipe(html):
         recipe_loaded_message = (
@@ -321,8 +321,7 @@ def process_url(url, say):
         say("Sorry, I couldn't parse that recipe. Make sure it's from AllRecipes.com")
         return False
 
-
-# Dictionary to track if welcome message has been sent to a channel
+# tracking welcome message
 channel_welcomed = {}
 
 
@@ -331,27 +330,21 @@ def mention_handler(event, say):
     channel_id = event["channel"]
     text = event["text"].lower()
 
-    # Send welcome message if this is the first interaction in the channel
     if channel_id not in channel_welcomed:
         welcome_message = "Welcome to Recipe Helper!\nTo get started, share an AllRecipes URL or say 'fetch' followed by the URL."
         say(welcome_message)
         channel_welcomed[channel_id] = True
-
-        # Check if URL is already included in the first message
         url_match = re.search(r"https?://[^\s]+", text)
         if url_match:
 
             url = url_match.group(0)
             process_url(url, say)
         return
-
-    # Check for URL in the message
     url_match = re.search(r"https?://[^\s]+", text)
     if url_match:
         url = url_match.group(0)
         process_url(url, say)
     else:
-        # Only handle other commands if no URL is present
         if "exit" in text.lower():
             say("Goodbye!")
             say("If you need help with a new recipe, just paste the URL with me mentioned!")
@@ -359,7 +352,7 @@ def mention_handler(event, say):
         response = handle_user_input(text)
         say(response)
 
-
+# command line interface
 def conversational_interface():
     print("Welcome to Recipe Helper!")
     print("You can:")
@@ -368,7 +361,6 @@ def conversational_interface():
     choice = input("Enter your choice (1 or 2): ")
 
     if choice == "1":
-        # Command line interface
         url = input(
             "Please enter an AllRecipes URL (or press Enter for default recipe): "
         )
@@ -395,7 +387,6 @@ def conversational_interface():
             print("Error loading recipe. Please try again.")
 
     elif choice == "2":
-        # Start Slack bot
         print("Starting Slack bot...")
         handler = SocketModeHandler(
             app,
